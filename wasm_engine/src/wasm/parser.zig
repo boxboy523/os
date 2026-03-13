@@ -1,6 +1,8 @@
 const std = @import("std");
 const types = @import("types.zig");
 const utils = @import("utils.zig");
+const context = @import("context.zig");
+const raw_data = @import("raw_data.zig");
 
 pub fn validateHeader(data: []const u8) !void {
     if (data.len < 8) {
@@ -16,8 +18,8 @@ pub fn validateHeader(data: []const u8) !void {
     }
 }
 
-pub fn buildWasmModule(data: []const u8) !types.WasmModule {
-    var module = types.WasmModule{
+pub fn buildWasmModule(data: []u8) !raw_data.WasmModule {
+    var module = raw_data.WasmModule{
         .raw_data = data,
         .type_section = null,
         .import_section = null,
@@ -34,25 +36,19 @@ pub fn buildWasmModule(data: []const u8) !types.WasmModule {
         .tag_section = null,
     };
 
-    var offset: usize = 8; // Skip magic and version
+    var stream = utils.byteStream{ .data = data[8..] };
     var last_section: u8 = 0;
-    while (offset < data.len) {
-        const section_id = data[offset];
-        offset += 1;
-        const offset_res = try utils.decodeLEB128(data[offset..]);
-        offset += offset_res.offset;
-        const section_data = try utils.safeSlice(data, offset, @as(usize, offset_res.value));
-        offset += offset_res.value;
-        if (offset > data.len) {
-            return error.UnexpectedEndOfData;
-        }
+    while (stream.data.len > 0) {
+        const section_id = try stream.readByte();
+        const section_size = try stream.readLEB128();
+        const section_data = try stream.slice(@as(usize, section_size));
         if (section_id == 0) { // skip custom section_id
             continue;
         } else if (section_id <= last_section) {
             return error.InvalidSection;
         }
         last_section = section_id;
-        const section = types.Section{
+        const section = raw_data.Section{
             .id = section_id,
             .data = section_data,
         };
@@ -74,4 +70,55 @@ pub fn buildWasmModule(data: []const u8) !types.WasmModule {
         }
     }
     return module;
+}
+
+pub fn parseFunctionSection(section: raw_data.Section, allocator: std.mem.Allocator) ![]u32 {
+    var stream = section.stream();
+    const count = try stream.readLEB128();
+    const function_table = try allocator.alloc(u32, count);
+    for (function_table) |*entry| {
+        const index = try stream.readLEB128();
+        entry.* = @intCast(index);
+    }
+    return function_table;
+}
+
+pub fn parseTypeSection(section: raw_data.Section, allocator: std.mem.Allocator) ![]context.FunctionType {
+    var stream = section.stream();
+    const type_count = try stream.readLEB128();
+    const function_types = try allocator.alloc(context.FunctionType, type_count);
+    for (function_types) |*func_type| {
+        func_type.* = try context.FunctionType.parse(&stream, allocator);
+    }
+    return function_types;
+}
+
+pub fn parseImportSection(section: raw_data.Section, allocator: std.mem.Allocator) ![]context.ImportEntry {
+    var stream = section.stream();
+    const import_count = try stream.readLEB128();
+    const imports = try allocator.alloc(context.ImportEntry, import_count);
+    for (imports) |*import| {
+        import.* = try context.ImportEntry.parse(&stream);
+    }
+    return imports;
+}
+
+pub fn parseExportSection(section: raw_data.Section, allocator: std.mem.Allocator) ![]context.ExportEntry {
+    var stream = section.stream();
+    const export_count = try stream.readLEB128();
+    const exports = try allocator.alloc(context.ExportEntry, export_count);
+    for (exports) |*exp| {
+        exp.* = try context.ExportEntry.parse(&stream);
+    }
+    return exports;
+}
+
+pub fn parseCodeSection(section: raw_data.Section, allocator: std.mem.Allocator) ![]context.CodeBody {
+    var stream = section.stream();
+    const code_count = try stream.readLEB128();
+    const code_bodies = try allocator.alloc(context.CodeBody, code_count);
+    for (code_bodies) |*body| {
+        body.* = try context.CodeBody.parse(&stream, allocator);
+    }
+    return code_bodies;
 }
