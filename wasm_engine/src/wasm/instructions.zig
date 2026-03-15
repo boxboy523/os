@@ -1,12 +1,8 @@
-<<<<<<< HEAD
 const Value = @import("types.zig").Value;
-=======
->>>>>>> 336a68a41ad81c9d282961cac18d8ec18596c0d1
 const VM = @import("vm.zig").VM;
 const Context = @import("context.zig").WasmContext;
 const utils = @import("utils.zig");
 
-<<<<<<< HEAD
 pub inline fn i32Const(vm: *VM, context: *const Context) anyerror!void {
     const code = context.code_bodies[vm.stack.function_index].code;
     const value = try utils.decodeLEB128(code[vm.pc..]);
@@ -65,29 +61,3 @@ pub inline fn end(vm: *VM, context: *const Context) anyerror!void {
         try vm.stack.push(result);
     }
 }
-=======
-inline fn I32Const(vm: *VM, context: *const Context) anyerror!void {
-    const code = context.code_bodies[vm.current_function_idx].code;
-    const value = try utils.decodeLEB128(code, vm.pc);
-    vm.pc += value.len;
-    try vm.value_stack.push(.I32(value.value));
-}
-
-inline fn I32Add(vm: *VM, _: *const Context) anyerror!void {
-    const b = try vm.value_stack.popI32();
-    const a = try vm.value_stack.popI32();
-    try vm.value_stack.push(.I32(a + b));
-}
-
-inline fn localGet(vm: *VM, context: *const Context) anyerror!void {
-    const code = context.code_bodies[vm.current_function_idx].code;
-    const index = try utils.decodeLEB128(code, vm.pc);
-    vm.pc += index.len;
-
-    try vm.value_stack.push(context.locals[index.value]);
-}
-
-inline fn unsupportedOpcode(_: *VM, _: *const Context) anyerror!void {
-    return error.UnsupportedOpcode;
-}
->>>>>>> 336a68a41ad81c9d282961cac18d8ec18596c0d1

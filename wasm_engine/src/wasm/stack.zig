@@ -1,20 +1,13 @@
 const std = @import("std");
 const Value = @import("types.zig").Value;
-<<<<<<< HEAD
 const Context = @import("context.zig").WasmContext;
-=======
->>>>>>> 336a68a41ad81c9d282961cac18d8ec18596c0d1
 
 pub const STACK_AVAILABLE = 1;
 pub const STACK_FIXED = 2;
 
 pub const Stack = struct {
     allocator: ?std.mem.Allocator,
-<<<<<<< HEAD
     data: []Value, // [arg0, arg1, ... ,  local0, local1, ... , saved_func_idx, saved_pc, saved_fp, ...]
-=======
-    data: []Value,
->>>>>>> 336a68a41ad81c9d282961cac18d8ec18596c0d1
     length: usize,
     frame_base: usize,
     function_index: usize,
@@ -22,11 +15,7 @@ pub const Stack = struct {
     initial_capacity: usize,
     flag: u8, // 2^0: is_available, 2^1: is_fixed,
 
-<<<<<<< HEAD
     pub fn initFixed(buffer: []Value, flag: u8) Stack {
-=======
-    pub fn init_fixed(buffer: []Value, flag: u8) Stack {
->>>>>>> 336a68a41ad81c9d282961cac18d8ec18596c0d1
         const flag_with_availability = flag | STACK_AVAILABLE | STACK_FIXED;
         return Stack{
             .allocator = null,
