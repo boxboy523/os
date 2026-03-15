@@ -1,5 +1,5 @@
 {
-  description = "KZD-OS: Kitten-Zig Distributed OS development environment";
+  description = "KZD-OS: Kitten-Zig Distributed OS (ARM64)";
 
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
@@ -9,16 +9,7 @@
   outputs = { self, nixpkgs, flake-utils }:
     flake-utils.lib.eachDefaultSystem (system:
       let
-        # 1. 지원되지 않는 시스템(RISC-V) 빌드를 허용하도록 설정된 pkgs 생성
-        pkgs = import nixpkgs {
-          inherit system;
-          config = {
-            allowUnsupportedSystem = true;
-          };
-        };
-
-        # 2. RISC-V 64비트 교차 컴파일용 패키지 셋 정의
-        pkgsRiscv = pkgs.pkgsCross.riscv64;
+        pkgs = import nixpkgs { inherit system; };
       in
       {
         devShells.default = pkgs.mkShell {
@@ -26,21 +17,24 @@
             zig
             zls
             qemu
-            gdb
-            lldb
-            xorriso
-            grub2
-            # 3. 교차 컴파일된 패키지 셋에서 U-Boot를 가져옵니다.
-            pkgsRiscv.ubootQemuRiscv64Smode
           ];
 
           shellHook = ''
-            # 4. U-Boot 바이너리 경로를 환경 변수로 자동 등록
-            export UBOOT_BIN="${pkgsRiscv.ubootQemuRiscv64Smode}/u-boot.bin"
+            # 1. QEMU 패키지에 내장된 ARM64 펌웨어 먼저 확인
+            export QEMU_EFI_ARM=$(find ${pkgs.qemu} -name "edk2-aarch64-code.fd" | head -n 1)
 
-            echo "🍎 KZD-OS Development Environment Loaded"
-            echo "Zig version: $(zig version)"
-            echo "U-Boot Path: $UBOOT_BIN"
+            # 2. 만약 없다면 OVMFFull의 바이너리 경로 확인
+            if [ -z "$QEMU_EFI_ARM" ]; then
+                export QEMU_EFI_ARM=$(find ${pkgs.OVMFFull.fd} -name "AAVMF_CODE.fd" | head -n 1)
+            fi
+
+            echo "🍎 KZD-OS ARM64 Environment Loaded"
+            if [ -n "$QEMU_EFI_ARM" ]; then
+              echo "✅ UEFI Firmware Found: $QEMU_EFI_ARM"
+            else
+              echo "❌ 여전히 못 찾았습니다. 아래 명령어로 펌웨어를 강제 다운로드하세요:"
+              echo "nix-build '<nixpkgs>' -A OVMFFull.fd"
+            fi
           '';
         };
       });

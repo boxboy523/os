@@ -2,6 +2,7 @@ const std = @import("std");
 const parser = @import("wasm/parser.zig");
 const context = @import("wasm/context.zig");
 const runner = @import("wasm/runner.zig");
+const Value = @import("wasm/types.zig").Value;
 
 pub fn main() !void {
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
@@ -26,8 +27,15 @@ pub fn main() !void {
     try parser.validateHeader(buffer);
     std.debug.print("Valid WASM header found!\n", .{});
     const wasm_module = try parser.buildWasmModule(buffer);
-    const wasm_context = try context.WasmContext.new(wasm_module, allocator);
-    defer wasm_context.free();
+    const wasm_context = try context.WasmContext.init(wasm_module, allocator);
+    defer wasm_context.deinit();
     wasm_context.print();
     std.debug.print("WASM module parsed successfully!\n", .{});
+    var process = try runner.setup(allocator, wasm_context);
+    defer process.vm.deinit();
+    const wasm_args: [2]Value = .{ .{ .i32 = 10 }, .{ .i32 = 20 } };
+    try process.entryRun(
+        0,
+        wasm_args[0..2],
+    );
 }
