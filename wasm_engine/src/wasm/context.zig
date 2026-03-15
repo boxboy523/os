@@ -13,7 +13,8 @@ pub const WasmContext = struct {
     exports: []ExportEntry,
     code_bodies: []CodeBody,
     arena: std.heap.ArenaAllocator,
-    pub fn new(module: raw_data.WasmModule, allocator: std.mem.Allocator) !WasmContext {
+
+    pub fn init(module: raw_data.WasmModule, allocator: std.mem.Allocator) !WasmContext {
         var context = WasmContext{
             .module = module,
             .function_types = &[_]FunctionType{},
@@ -77,7 +78,7 @@ pub const WasmContext = struct {
         }
     }
 
-    pub fn free(self: WasmContext) void {
+    pub fn deinit(self: WasmContext) void {
         self.arena.deinit();
     }
 };

@@ -27,7 +27,7 @@ pub fn main() !void {
     std.debug.print("Valid WASM header found!\n", .{});
     const wasm_module = try parser.buildWasmModule(buffer);
     const wasm_context = try context.WasmContext.new(wasm_module, allocator);
-    defer wasm_context.free();
+    defer wasm_context.deinit();
     wasm_context.print();
     std.debug.print("WASM module parsed successfully!\n", .{});
 }
