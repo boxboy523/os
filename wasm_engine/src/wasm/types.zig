@@ -32,18 +32,29 @@ pub const Limits = struct {
     max: ?u64,
 };
 
+<<<<<<< HEAD
 pub const Value = union(enum) {
+=======
+const Value = union(enum) {
+>>>>>>> 336a68a41ad81c9d282961cac18d8ec18596c0d1
     i32: i32,
     i64: i64,
     f32: f32,
     f64: f64,
 };
 
+<<<<<<< HEAD
 pub const Opcode = enum(u8) {
     Unreachable = 0x00,
     Nop = 0x01,
     End = 0x0B,
     Call = 0x10,
+=======
+const Opcode = enum(u8) {
+    Unreachable = 0x00,
+    Nop = 0x01,
+    End = 0x0B,
+>>>>>>> 336a68a41ad81c9d282961cac18d8ec18596c0d1
     LocalGet = 0x20,
     I32Const = 0x41,
     I32Add = 0x6A,

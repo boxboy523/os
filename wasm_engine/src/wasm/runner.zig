@@ -4,12 +4,16 @@ const Context = @import("context.zig").WasmContext;
 const utils = @import("utils.zig");
 const Opcode = @import("types.zig").Opcode;
 const Inst = @import("instructions.zig");
+<<<<<<< HEAD
 const Value = @import("types.zig").Value;
+=======
+>>>>>>> 336a68a41ad81c9d282961cac18d8ec18596c0d1
 
 pub const Process = struct {
     vm: VM,
     context: Context,
 
+<<<<<<< HEAD
     pub fn entryRun(self: *Process, func_idx: usize, args: []const Value) anyerror!void {
         try self.vm.entry(func_idx, args);
         while (self.vm.running) {
@@ -45,12 +49,31 @@ pub const Process = struct {
         } else {
             std.debug.print("Empty\n", .{});
         }
+=======
+    fn step(self: *Process) anyerror!void {
+        const code = self.context.code_bodies[self.vm.current_function_idx].code;
+        if (self.vm.pc >= code.len) {
+            return error.EndOfFunction;
+        }
+        const opcode: Opcode = std.meta.intToEnum(Opcode, code[self.vm.pc]) catch {
+            std.debug.panic("Invalid opcode: {d}", .{code[self.vm.pc]});
+        };
+        self.vm.pc += 1; // Move past the opcode byte
+        switch (opcode) {
+            .I32Const => try Inst.I32Const(&self.vm, &self.context), // i32.const
+            else => try Inst.unsupportedOpcode(&self.vm, &self.context),
+        }
+>>>>>>> 336a68a41ad81c9d282961cac18d8ec18596c0d1
     }
 };
 
 pub fn setup(allocator: std.mem.Allocator, context: Context) !Process {
     return .{
+<<<<<<< HEAD
         .vm = try VM.init(allocator, 1024),
+=======
+        .vm = try VM.init(allocator, 1024, 1024),
+>>>>>>> 336a68a41ad81c9d282961cac18d8ec18596c0d1
         .context = context,
     };
 }
