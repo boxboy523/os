@@ -15,6 +15,25 @@ pub const WasmModule = struct {
     data_section: ?Section,
     data_count_section: ?Section,
     tag_section: ?Section,
+
+    pub fn empty() WasmModule {
+        return .{
+            .raw_data = &[_]u8{},
+            .type_section = null,
+            .import_section = null,
+            .function_section = null,
+            .table_section = null,
+            .memory_section = null,
+            .global_section = null,
+            .export_section = null,
+            .start_section = null,
+            .element_section = null,
+            .code_section = null,
+            .data_section = null,
+            .data_count_section = null,
+            .tag_section = null,
+        };
+    }
 };
 
 pub const Section = struct {

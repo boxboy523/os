@@ -4,35 +4,64 @@ const raw_data = @import("raw_data.zig");
 const types = @import("types.zig");
 const utils = @import("utils.zig");
 const parser = @import("parser.zig");
+const Process = @import("runner.zig").Process;
+const VM = @import("vm.zig").VM;
+const runner = @import("runner.zig");
 
 pub const WasmContext = struct {
     module: raw_data.WasmModule,
     function_types: []FunctionType,
-    function_table: []u32,
     imports: []ImportEntry,
+    function_table: []u32,
+    memories: []MemoryEntry,
+    globals: []Global,
     exports: []ExportEntry,
     code_bodies: []CodeBody,
-    arena: std.heap.ArenaAllocator,
+    arena: ?std.heap.ArenaAllocator,
+
+    pub fn empty() WasmContext {
+        return .{
+            .module = raw_data.WasmModule.empty(),
+            .function_types = &[_]FunctionType{},
+            .imports = &[_]ImportEntry{},
+            .function_table = &[_]u32{},
+            .memories = &[_]MemoryEntry{},
+            .globals = &[_]Global{},
+            .exports = &[_]ExportEntry{},
+            .code_bodies = &[_]CodeBody{},
+            .arena = null,
+        };
+    }
 
     pub fn init(module: raw_data.WasmModule, allocator: std.mem.Allocator) !WasmContext {
         var context = WasmContext{
             .module = module,
             .function_types = &[_]FunctionType{},
-            .function_table = &[_]u32{},
             .imports = &[_]ImportEntry{},
+            .function_table = &[_]u32{},
+            .memories = &[_]MemoryEntry{},
+            .globals = &[_]Global{},
             .exports = &[_]ExportEntry{},
             .code_bodies = &[_]CodeBody{},
-            .arena = std.heap.ArenaAllocator.init(allocator),
+            .arena = null,
         };
-        const arena_allocator = context.arena.allocator();
+        var arena = std.heap.ArenaAllocator.init(allocator);
+        const arena_allocator = arena.allocator();
+        errdefer context.deinit();
         if (module.type_section) |section| {
             context.function_types = try parser.parseTypeSection(section, arena_allocator);
+        }
+        if (module.import_section) |section| {
+            context.imports = try parser.parseImportSection(section, arena_allocator);
         }
         if (module.function_section) |section| {
             context.function_table = try parser.parseFunctionSection(section, arena_allocator);
         }
-        if (module.import_section) |section| {
-            context.imports = try parser.parseImportSection(section, arena_allocator);
+        if (module.memory_section) |section| {
+            context.memories = try parser.parseMemorySection(section, arena_allocator);
+        }
+        if (module.global_section) |section| {
+            context.globals = try parser.parseGlobalSection(section, arena_allocator);
         }
         if (module.export_section) |section| {
             context.exports = try parser.parseExportSection(section, arena_allocator);
@@ -40,9 +69,10 @@ pub const WasmContext = struct {
         if (module.code_section) |section| {
             context.code_bodies = try parser.parseCodeSection(section, arena_allocator);
         }
-        if (context.function_types.len != context.code_bodies.len) {
+        if (context.function_table.len != context.code_bodies.len) {
             return error.InvalidWasmFile; // Function count mismatch
         }
+        context.arena = arena;
         return context;
     }
 
@@ -64,6 +94,12 @@ pub const WasmContext = struct {
             import.print();
             std.debug.print("\n", .{});
         }
+        std.debug.print("  Globals:\n", .{});
+        for (self.globals) |global| {
+            std.debug.print("    - ", .{});
+            global.print();
+            std.debug.print("\n", .{});
+        }
         std.debug.print("  Exports:\n", .{});
         for (self.exports) |exp| {
             std.debug.print("    - ", .{});
@@ -79,7 +115,11 @@ pub const WasmContext = struct {
     }
 
     pub fn deinit(self: WasmContext) void {
-        self.arena.deinit();
+        if (self.arena) |arena| {
+            arena.deinit();
+        } else {
+            std.debug.print("Warning: WasmContext deinit called without an arena allocator\n", .{});
+        }
     }
 };
 
@@ -316,5 +356,85 @@ pub const CodeBody = struct {
 
     pub fn free(self: CodeBody, allocator: std.mem.Allocator) void {
         allocator.free(self.locals);
+    }
+};
+
+pub const MemoryEntry = struct {
+    limits: types.Limits,
+    is_64bit: bool,
+
+    pub fn parse(stream: *utils.byteStream) !MemoryEntry {
+        const flags = try stream.readByte();
+        const is_64bit = (flags & 0x04) != 0;
+        const has_max = (flags & 0x01) != 0;
+        const min = try stream.readLEB128();
+        var max: ?u64 = null;
+        if (has_max) {
+            max = try stream.readLEB128();
+        }
+        return .{
+            .limits = .{ .min = min, .max = max },
+            .is_64bit = is_64bit,
+        };
+    }
+
+    pub fn print(self: MemoryEntry) void {
+        std.debug.print("MemoryEntry(limits: {{ min: {d}, max: {d} }}, is_64bit: {s})", .{
+            self.limits.min,
+            self.limits.max orelse 0,
+            if (self.is_64bit) "true" else "false",
+        });
+    }
+};
+
+pub const Global = struct {
+    content_type: types.ValueType,
+    mutable: bool,
+    value: types.Value,
+
+    pub fn parse(stream: *utils.byteStream, temp_vm: *VM, globals: []Global) !Global {
+        const content_type_raw = try stream.readByte();
+        const content_type: types.ValueType = @enumFromInt(content_type_raw);
+        const mutability = try stream.readByte();
+        if (mutability != 0 and mutability != 1) {
+            std.debug.print("Invalid mutability byte: {d}\n", .{mutability});
+            return error.InvalidWasmFile;
+        }
+        var empty_ctx = WasmContext.empty();
+        const data = stream.data;
+        empty_ctx.globals = globals;
+        var code_body = [_]CodeBody{
+            .{
+                .locals = &[_]LocalEntry{},
+                .code = data,
+            },
+        };
+        empty_ctx.code_bodies = code_body[0..];
+        try temp_vm.entry(0, &[_]types.Value{});
+        while (true) {
+            const opcode = data[temp_vm.pc];
+            temp_vm.pc += 1;
+            if (opcode == 0x0B) { // end opcode
+                break;
+            }
+            try runner.executeOpcode(temp_vm, &empty_ctx, @enumFromInt(opcode));
+        }
+        const value = try temp_vm.stack.pop();
+        if (temp_vm.stack.length != 0) return error.InvalidConstantExpression;
+        try stream.skip(temp_vm.pc);
+        return .{
+            .content_type = content_type,
+            .mutable = mutability == 1,
+            .value = value,
+        };
+    }
+
+    pub fn print(self: Global) void {
+        std.debug.print("Global(content_type: {s}, mutable: {s}, value: ", .{
+            @tagName(self.content_type),
+            if (self.mutable) "var" else "const",
+        });
+        self.value.print();
+        std.debug.print(")", .{});
     }
 };

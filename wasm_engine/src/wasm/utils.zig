@@ -63,4 +63,11 @@ pub const byteStream = struct {
         self.data = self.data[length..];
         return rtn;
     }
+
+    pub fn skip(self: *byteStream, length: usize) !void {
+        if (self.data.len < length) {
+            return error.UnexpectedEndOfData;
+        }
+        self.data = self.data[length..];
+    }
 };

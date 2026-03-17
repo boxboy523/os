@@ -132,14 +132,15 @@ pub const Stack = struct {
     }
 
     pub fn enterFrame(self: *Stack, context: *const Context, func_idx: usize, ret: u64) !void {
-        const num_args = context.function_types[func_idx].params.len;
+        const func_type_idx: usize = @intCast(context.function_table[func_idx]);
+        const num_args = context.function_types[func_type_idx].params.len;
         var num_locals: usize = 0;
         for (context.code_bodies[func_idx].locals) |local| {
             num_locals += @intCast(local.count);
         }
         const new_frame_base = self.length - num_args;
         const extra_needed = num_locals + 3; // locals + saved_func_idx + saved_pc + saved_fp
-        if (self.length + extra_needed > self.capacity) {
+        while (self.length + extra_needed > self.capacity) {
             try self.resize(self.capacity * 2);
         }
 
@@ -173,6 +174,12 @@ pub const Stack = struct {
             try self.resize(self.capacity / 2);
         }
         return @intCast(saved_pc);
+    }
+
+    pub fn clear(self: *Stack) void {
+        self.length = 0;
+        self.frame_base = 0;
+        self.function_index = 0;
     }
 
     pub fn free(self: *Stack) void {

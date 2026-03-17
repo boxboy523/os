@@ -3,6 +3,7 @@ const types = @import("types.zig");
 const utils = @import("utils.zig");
 const context = @import("context.zig");
 const raw_data = @import("raw_data.zig");
+const VM = @import("vm.zig").VM;
 
 pub fn validateHeader(data: []const u8) !void {
     if (data.len < 8) {
@@ -18,7 +19,7 @@ pub fn validateHeader(data: []const u8) !void {
     }
 }
 
-pub fn buildWasmModule(data: []u8) !raw_data.WasmModule {
+pub fn buildWasmModule(data: []const u8) !raw_data.WasmModule {
     var module = raw_data.WasmModule{
         .raw_data = data,
         .type_section = null,
@@ -121,4 +122,27 @@ pub fn parseCodeSection(section: raw_data.Section, allocator: std.mem.Allocator)
         body.* = try context.CodeBody.parse(&stream, allocator);
     }
     return code_bodies;
+}
+
+pub fn parseMemorySection(section: raw_data.Section, allocator: std.mem.Allocator) ![]context.MemoryEntry {
+    var stream = section.stream();
+    const memory_count = try stream.readLEB128();
+    const memories = try allocator.alloc(context.MemoryEntry, memory_count);
+    for (memories) |*memory| {
+        memory.* = try context.MemoryEntry.parse(&stream);
+    }
+    return memories;
+}
+
+pub fn parseGlobalSection(section: raw_data.Section, allocator: std.mem.Allocator) ![]context.Global {
+    var stream = section.stream();
+    const global_count = try stream.readLEB128();
+    const globals = try allocator.alloc(context.Global, global_count);
+    const empty_context = context.WasmContext.empty();
+    var temp_vm = try VM.init(allocator, empty_context, 128);
+    defer temp_vm.deinit();
+    for (globals, 0..) |*global, i| {
+        global.* = try context.Global.parse(&stream, &temp_vm, globals[0..i]);
+    }
+    return globals;
 }

@@ -26,16 +26,11 @@ pub fn main() !void {
 
     try parser.validateHeader(buffer);
     std.debug.print("Valid WASM header found!\n", .{});
-    const wasm_module = try parser.buildWasmModule(buffer);
-    const wasm_context = try context.WasmContext.init(wasm_module, allocator);
-    defer wasm_context.deinit();
-    wasm_context.print();
-    std.debug.print("WASM module parsed successfully!\n", .{});
-    var process = try runner.setup(allocator, wasm_context);
-    defer process.vm.deinit();
-    const wasm_args: [2]Value = .{ .{ .i32 = 10 }, .{ .i32 = 20 } };
+    var process = try runner.setup(allocator, buffer);
+    defer process.deinit();
+    const wasm_args: [0]Value = undefined; // No arguments for now
     try process.entryRun(
-        0,
-        wasm_args[0..2],
+        1,
+        wasm_args[0..0],
     );
 }

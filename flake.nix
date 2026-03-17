@@ -17,6 +17,10 @@
             zig
             zls
             qemu
+            llvmPackages_18.clang-unwrapped
+            llvmPackages_18.lld
+            wasm-tools
+            wabt
           ];
 
           shellHook = ''
