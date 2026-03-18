@@ -13,25 +13,29 @@ pub inline fn nop(_: *VM, _: *const Context) anyerror!void {
 }
 
 pub inline fn end(vm: *VM, context: *const Context) anyerror!void {
-    const func_type_idx: usize = @intCast(context.function_table[vm.stack.function_index]);
-    const func_type = context.function_types[func_type_idx];
-    const return_count = func_type.results.len;
-    var results_buf: [8]Value = undefined;
-    const results = if (return_count <= 8)
-        results_buf[0..return_count]
-    else
-        try vm.allocator.allocator().alloc(Value, return_count);
-    defer if (return_count > 8) vm.allocator.allocator().free(results);
-    for (0..return_count) |i| {
-        results[return_count - 1 - i] = try vm.stack.pop();
-    }
-    if (try vm.stack.exitFrame()) |return_addr| {
-        vm.pc = return_addr;
+    if ((try vm.stack.control_stack.head()).block_type == .Function) {
+        const func_type_idx: usize = @intCast(context.function_table[vm.stack.function_index]);
+        const func_type = context.function_types[func_type_idx];
+        const return_count = func_type.results.len;
+        var results_buf: [8]Value = undefined;
+        const results = if (return_count <= 8)
+            results_buf[0..return_count]
+        else
+            try vm.allocator.allocator().alloc(Value, return_count);
+        defer if (return_count > 8) vm.allocator.allocator().free(results);
+        for (0..return_count) |i| {
+            results[return_count - 1 - i] = try vm.stack.pop();
+        }
+        if (try vm.stack.exitFrame()) |return_addr| {
+            vm.pc = return_addr;
+        } else {
+            vm.running = false;
+        }
+        for (results) |result| {
+            try vm.stack.push(result);
+        }
     } else {
-        vm.running = false;
-    }
-    for (results) |result| {
-        try vm.stack.push(result);
+        try vm.stack.end();
     }
 }
 

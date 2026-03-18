@@ -64,3 +64,25 @@ pub const Opcode = enum(u8) {
     I32Add = 0x6A,
     I32Sub = 0x6B,
 };
+
+pub const BlockType = enum(u8) {
+    Block = 0x02,
+    Loop = 0x03,
+    If = 0x04,
+    Function = 0x00,
+};
+
+pub const Block = struct {
+    block_type: BlockType align(8),
+    stack_ptr: usize,
+    start_pc: usize,
+    end_pc: usize,
+    result_count: usize,
+    _padding: [24]u8,
+};
+
+comptime {
+    if (@sizeOf(Block) != 64) {
+        @compileError("Block struct must be exactly 64 bytes for efficient copying");
+    }
+}

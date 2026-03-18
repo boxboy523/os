@@ -1,5 +1,5 @@
 const std = @import("std");
-const Stack = @import("stack.zig").Stack;
+const StackSpace = @import("stack.zig").StackSpace;
 const Limits = @import("types.zig").Limits;
 const Value = @import("types.zig").Value;
 const Global = @import("context.zig").Global;
@@ -51,7 +51,7 @@ pub const Memory = struct {
 };
 
 pub const VM = struct {
-    stack: Stack,
+    stack: StackSpace,
     pc: usize, // program counter
     allocator: std.heap.ArenaAllocator,
     globals: []Global,
@@ -61,7 +61,7 @@ pub const VM = struct {
     pub fn init(allocator: std.mem.Allocator, context: Context, stack_cap: usize) !VM {
         var arena = std.heap.ArenaAllocator.init(allocator);
         const aa = arena.allocator();
-        const stack = try Stack.init(aa, stack_cap, 0);
+        const stack = try StackSpace.init(aa, stack_cap, 0);
         const globals_copy = try aa.alloc(Global, context.globals.len);
         const memories = try aa.alloc(Memory, context.memories.len);
         for (context.memories, 0..) |mem, i| {

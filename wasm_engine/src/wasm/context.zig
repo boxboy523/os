@@ -420,7 +420,7 @@ pub const Global = struct {
             try runner.executeOpcode(temp_vm, &empty_ctx, @enumFromInt(opcode));
         }
         const value = try temp_vm.stack.pop();
-        if (temp_vm.stack.length != 0) return error.InvalidConstantExpression;
+        if (temp_vm.stack.call_stack.length != 0) return error.InvalidConstantExpression;
         try stream.skip(temp_vm.pc);
         return .{
             .content_type = content_type,

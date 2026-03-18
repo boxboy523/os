@@ -33,9 +33,9 @@ pub const Process = struct {
         self.vm.pc += 1; // Move past the opcode byte
         try executeOpcode(&self.vm, &self.context, opcode);
 
-        std.debug.print("[PC: {d}] Stack Depth: {d} Opcode: {s} Function: {d} | Top: ", .{ debug_pc, self.vm.stack.length, @tagName(opcode), self.vm.stack.function_index });
-        if (self.vm.stack.length > 0) {
-            const top = self.vm.stack.data[self.vm.stack.length - 1];
+        std.debug.print("[PC: {d}] Stack Depth: {d} Opcode: {s} Function: {d} | Top: ", .{ debug_pc, self.vm.stack.call_stack.length, @tagName(opcode), self.vm.stack.function_index });
+        if (self.vm.stack.call_stack.length > 0) {
+            const top = try self.vm.stack.call_stack.head();
             std.debug.print("{any}\n", .{top});
         } else {
             std.debug.print("Empty\n", .{});
