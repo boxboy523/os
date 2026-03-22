@@ -1,100 +1,98 @@
 const std = @import("std");
-const Value = @import("types.zig").Value;
+const types = @import("types.zig");
 const VM = @import("vm.zig").VM;
 const Context = @import("context.zig").WasmContext;
 const utils = @import("utils.zig");
 
-pub inline fn unreachableOp(_: *VM, _: *const Context) anyerror!void {
+pub inline fn unreachableOp() anyerror!void {
     return error.Unreachable;
 }
 
-pub inline fn nop(_: *VM, _: *const Context) anyerror!void {
-    // No operation, just return
+pub inline fn block_op(_: types.Block) anyerror!void {
+    // Start of block, do nothing special for now
 }
 
-pub inline fn end(vm: *VM, context: *const Context) anyerror!void {
-    if ((try vm.stack.control_stack.head()).block_type == .Function) {
-        const func_type_idx: usize = @intCast(context.function_table[vm.stack.function_index]);
-        const func_type = context.function_types[func_type_idx];
-        const return_count = func_type.results.len;
-        var results_buf: [8]Value = undefined;
-        const results = if (return_count <= 8)
-            results_buf[0..return_count]
-        else
-            try vm.allocator.allocator().alloc(Value, return_count);
-        defer if (return_count > 8) vm.allocator.allocator().free(results);
-        for (0..return_count) |i| {
-            results[return_count - 1 - i] = try vm.stack.pop();
-        }
-        if (try vm.stack.exitFrame()) |return_addr| {
+pub inline fn loop(_: types.Block) anyerror!void {
+    // Start of loop, do nothing special for now
+}
+
+pub inline fn if_op(vm: *VM, block: types.Block) anyerror!void {
+    const condition = try vm.popI32();
+    if (condition == 0) {
+        vm.pc = block.to_jump orelse return error.InvalidWasmFile;
+    }
+}
+
+pub inline fn else_op(vm: *VM, block: types.Block) anyerror!void {
+    vm.pc = block.to_jump orelse return error.InvalidWasmFile;
+    vm.stack.length.val -= block.stack_offset;
+}
+
+pub inline fn end(vm: *VM, block: types.Block) anyerror!void {
+    if (block.tag == .function) {
+        if (try vm.exitFrame(block)) |return_addr| {
             vm.pc = return_addr;
         } else {
             vm.running = false;
         }
-        for (results) |result| {
-            try vm.stack.push(result);
-        }
     } else {
-        try vm.stack.end();
+        try vm.end(block);
     }
 }
 
-pub inline fn returnOp(vm: *VM, context: *const Context) anyerror!void {
-    vm.pc = context.code_bodies[vm.stack.function_index].code.len - 1; // Force end of function
+pub inline fn br(vm: *VM, block: types.Block) anyerror!void {
+    vm.pc = block.to_jump orelse return error.InvalidWasmFile;
+    vm.stack.length = vm.stack.length.sub(block.stack_offset);
 }
 
-pub inline fn call(vm: *VM, context: *const Context) anyerror!void {
-    const code = context.code_bodies[vm.stack.function_index].code;
-    const func_idx = try utils.decodeLEB128(code[vm.pc..]);
-    vm.pc += func_idx.offset;
-    try vm.stack.enterFrame(context, @intCast(func_idx.value), vm.pc);
+pub inline fn brIf(vm: *VM, block: types.Block) anyerror!void {
+    const condition = try vm.popI32();
+    if (condition != 0) {
+        vm.pc = block.to_jump orelse return error.InvalidWasmFile;
+        vm.stack.length = vm.stack.length.sub(block.stack_offset);
+    }
+}
+
+pub inline fn returnOp(vm: *VM, block: types.Block) anyerror!void {
+    if (try vm.exitFrame(block)) |return_addr| {
+        vm.pc = return_addr;
+    } else {
+        vm.running = false;
+    }
+}
+
+pub inline fn call(vm: *VM, func_ref: types.FuncRef) anyerror!void {
+    try vm.enterFrame(func_ref, vm.pc);
     vm.pc = 0; // Start of the called function's code
 }
 
-pub inline fn localGet(vm: *VM, context: *const Context) anyerror!void {
-    const code = context.code_bodies[vm.stack.function_index].code;
-    const index = try utils.decodeLEB128(code[vm.pc..]);
-    vm.pc += index.offset;
-    const value = try vm.stack.getLocal(index.value);
+pub inline fn localGet(vm: *VM, idx: types.LocalIdx) anyerror!void {
+    const value = try vm.getLocal(idx);
     try vm.stack.push(value);
 }
 
-pub inline fn localSet(vm: *VM, context: *const Context) anyerror!void {
-    const code = context.code_bodies[vm.stack.function_index].code;
-    const index = try utils.decodeLEB128(code[vm.pc..]);
-    vm.pc += index.offset;
+pub inline fn localSet(vm: *VM, idx: types.LocalIdx) anyerror!void {
     const value = try vm.stack.pop();
-    try vm.stack.setLocal(index.value, value);
+    try vm.setLocal(idx, value);
 }
 
-pub inline fn globalGet(vm: *VM, context: *const Context) anyerror!void {
-    const code = context.code_bodies[vm.stack.function_index].code;
-    const index = try utils.decodeLEB128(code[vm.pc..]);
-    vm.pc += index.offset;
-    const value = vm.globals[index.value].value;
+pub inline fn globalGet(vm: *VM, idx: types.GlobalIdx) anyerror!void {
+    const value = vm.globals[idx.val].value;
     try vm.stack.push(value);
 }
 
-pub inline fn globalSet(vm: *VM, context: *const Context) anyerror!void {
-    const code = context.code_bodies[vm.stack.function_index].code;
-    const index = try utils.decodeLEB128(code[vm.pc..]);
-    vm.pc += index.offset;
+pub inline fn globalSet(vm: *VM, idx: types.GlobalIdx) anyerror!void {
     const value = try vm.stack.pop();
-    if (vm.globals[index.value].mutable) {
-        vm.globals[index.value].value = value;
+    if (vm.globals[idx.val].mutable) {
+        vm.globals[idx.val].value = value;
     } else {
         return error.GlobalImmutable;
     }
 }
 
-pub inline fn i32Load(vm: *VM, context: *const Context) anyerror!void {
-    const code = context.code_bodies[vm.stack.function_index].code;
-    const alignment = try utils.decodeLEB128(code[vm.pc..]);
-    vm.pc += alignment.offset;
-    const offset = try utils.decodeLEB128(code[vm.pc..]);
-    vm.pc += offset.offset;
-    const addrValue: usize = @intCast(try vm.stack.popI32());
-    const addr: usize = addrValue + @as(usize, offset.value);
+pub inline fn i32Load(vm: *VM, mem_arg: types.MemArg) anyerror!void {
+    const addrValue: usize = @intCast(try vm.popI32());
+    const addr: usize = addrValue + @as(usize, mem_arg.offset);
     if (addr > vm.memories[0].data.len - 4) {
         return error.MemoryOutOfBounds;
     }
@@ -102,38 +100,30 @@ pub inline fn i32Load(vm: *VM, context: *const Context) anyerror!void {
     try vm.stack.push(.{ .i32 = value });
 }
 
-pub inline fn i32Store(vm: *VM, context: *const Context) anyerror!void {
-    const code = context.code_bodies[vm.stack.function_index].code;
-    const alignment = try utils.decodeLEB128(code[vm.pc..]);
-    vm.pc += alignment.offset;
-    const offset = try utils.decodeLEB128(code[vm.pc..]);
-    vm.pc += offset.offset;
-    const value = try vm.stack.popI32();
-    const addrValue: usize = @intCast(try vm.stack.popI32());
-    const addr: usize = addrValue + @as(usize, offset.value);
+pub inline fn i32Store(vm: *VM, mem_arg: types.MemArg) anyerror!void {
+    const value = try vm.popI32();
+    const addrValue: usize = @intCast(try vm.popI32());
+    const addr: usize = addrValue + @as(usize, mem_arg.offset);
     if (addr > vm.memories[0].data.len - 4) {
         return error.MemoryOutOfBounds;
     }
     std.mem.writeInt(i32, vm.memories[0].data[addr..][0..4], value, .little);
 }
 
-pub inline fn i32Add(vm: *VM, _: *const Context) anyerror!void {
-    const b = try vm.stack.popI32();
-    const a = try vm.stack.popI32();
+pub inline fn i32Add(vm: *VM) anyerror!void {
+    const b = try vm.popI32();
+    const a = try vm.popI32();
     try vm.stack.push(.{ .i32 = @intCast(a + b) });
 }
 
-pub inline fn i32Sub(vm: *VM, _: *const Context) anyerror!void {
-    const b = try vm.stack.popI32();
-    const a = try vm.stack.popI32();
+pub inline fn i32Sub(vm: *VM) anyerror!void {
+    const b = try vm.popI32();
+    const a = try vm.popI32();
     try vm.stack.push(.{ .i32 = @intCast(a - b) });
 }
 
-pub inline fn i32Const(vm: *VM, context: *const Context) anyerror!void {
-    const code = context.code_bodies[vm.stack.function_index].code;
-    const value = try utils.decodeLEB128(code[vm.pc..]);
-    vm.pc += value.offset;
-    try vm.stack.push(.{ .i32 = @intCast(value.value) });
+pub inline fn i32Const(vm: *VM, value: i32) anyerror!void {
+    try vm.stack.push(.{ .i32 = value });
 }
 
 pub inline fn unsupportedOpcode(_: *VM, _: *const Context) anyerror!void {

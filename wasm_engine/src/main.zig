@@ -30,7 +30,7 @@ pub fn main() !void {
     defer process.deinit();
     const wasm_args: [0]Value = undefined; // No arguments for now
     try process.entryRun(
-        1,
+        .{ .val = 1 },
         wasm_args[0..0],
     );
 }

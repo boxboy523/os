@@ -2,6 +2,7 @@ const std = @import("std");
 const types = @import("types.zig");
 const utils = @import("utils.zig");
 const context = @import("context.zig");
+const code = @import("context/code.zig");
 const raw_data = @import("raw_data.zig");
 const VM = @import("vm.zig").VM;
 
@@ -73,25 +74,25 @@ pub fn buildWasmModule(data: []const u8) !raw_data.WasmModule {
     return module;
 }
 
-pub fn parseFunctionSection(section: raw_data.Section, allocator: std.mem.Allocator) ![]u32 {
+pub fn parseFunctionSection(section: raw_data.Section, allocator: std.mem.Allocator) ![]types.TypeIdx {
     var stream = section.stream();
     const count = try stream.readLEB128();
-    const function_table = try allocator.alloc(u32, count);
-    for (function_table) |*entry| {
+    const func_table = try allocator.alloc(types.TypeIdx, count);
+    for (func_table) |*entry| {
         const index = try stream.readLEB128();
-        entry.* = @intCast(index);
+        entry.val = index;
     }
-    return function_table;
+    return func_table;
 }
 
-pub fn parseTypeSection(section: raw_data.Section, allocator: std.mem.Allocator) ![]context.FunctionType {
+pub fn parseTypeSection(section: raw_data.Section, allocator: std.mem.Allocator) ![]context.FuncType {
     var stream = section.stream();
     const type_count = try stream.readLEB128();
-    const function_types = try allocator.alloc(context.FunctionType, type_count);
-    for (function_types) |*func_type| {
-        func_type.* = try context.FunctionType.parse(&stream, allocator);
+    const func_types = try allocator.alloc(context.FuncType, type_count);
+    for (func_types) |*func_type| {
+        func_type.* = try context.FuncType.parse(&stream, allocator);
     }
-    return function_types;
+    return func_types;
 }
 
 pub fn parseImportSection(section: raw_data.Section, allocator: std.mem.Allocator) ![]context.ImportEntry {
@@ -114,12 +115,12 @@ pub fn parseExportSection(section: raw_data.Section, allocator: std.mem.Allocato
     return exports;
 }
 
-pub fn parseCodeSection(section: raw_data.Section, allocator: std.mem.Allocator) ![]context.CodeBody {
+pub fn parseCodeSection(section: raw_data.Section, allocator: std.mem.Allocator) ![]code.CodeBody {
     var stream = section.stream();
     const code_count = try stream.readLEB128();
-    const code_bodies = try allocator.alloc(context.CodeBody, code_count);
-    for (code_bodies) |*body| {
-        body.* = try context.CodeBody.parse(&stream, allocator);
+    const code_bodies = try allocator.alloc(code.CodeBody, code_count);
+    for (code_bodies, 0..) |*body, idx| {
+        body.* = try code.CodeBody.parse(&stream, .{ .val = idx }, allocator);
     }
     return code_bodies;
 }
@@ -138,11 +139,8 @@ pub fn parseGlobalSection(section: raw_data.Section, allocator: std.mem.Allocato
     var stream = section.stream();
     const global_count = try stream.readLEB128();
     const globals = try allocator.alloc(context.Global, global_count);
-    const empty_context = context.WasmContext.empty();
-    var temp_vm = try VM.init(allocator, empty_context, 128);
-    defer temp_vm.deinit();
     for (globals, 0..) |*global, i| {
-        global.* = try context.Global.parse(&stream, &temp_vm, globals[0..i]);
+        global.* = try context.Global.parse(&stream, globals[0..i], allocator);
     }
     return globals;
 }

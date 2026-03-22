@@ -2,9 +2,15 @@ __attribute__((visibility("default")))
 int add(int a, int b);
 
 int entry() {
-    int result1 = add(2, 3);
-    int result2 = add(5, 7);
-    return result1 + result2; // Should return 17
+    int a = 0;
+    while (a < 10) {
+        a = add(a, 1);
+    }
+    if (a == 10) {
+        return 0;
+    } else {
+        return 1;
+    }
 }
 
 int add(int a, int b) {

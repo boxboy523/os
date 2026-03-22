@@ -16,9 +16,12 @@
           buildInputs = with pkgs; [
             zig
             zls
+            gdb
             qemu
             llvmPackages_18.clang-unwrapped
             llvmPackages_18.lld
+            llvmPackages_18.lldb
+            vscode-extensions.vadimcn.vscode-lldb.adapter
             wasm-tools
             wabt
           ];
