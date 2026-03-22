@@ -68,9 +68,23 @@ pub fn executeOpcode(vm: *VM, opcode: types.Opcode) anyerror!void {
         .global_set => |idx| try inst.globalSet(vm, idx), // global
         .i32_load => |mem_arg| try inst.i32Load(vm, mem_arg), // i32.load
         .i32_store => |mem_arg| try inst.i32Store(vm, mem_arg), // i32.store
+        .i32_const => |value| try inst.i32Const(vm, value), // i32.const
+        .i32_eqz => try inst.i32Eqz(vm), // i32.eqz
+        .i32_eq => try inst.i32Eq(vm), // i32.eq
+        .i32_ne => try inst.i32Ne(vm), // i32.ne
+        .i32_lt_s => try inst.i32LtS(vm), // i32.lt
+        .i32_lt_u => try inst.i32LtU(vm), // i32.lt_u
+        .i32_gt_s => try inst.i32GtS(vm), // i32.gt
+        .i32_gt_u => try inst.i32GtU(vm), // i32.gt_u
+        .i32_le_s => try inst.i32LeS(vm), // i32.le
+        .i32_le_u => try inst.i32LeU(vm), // i32.le
+        .i32_ge_s => try inst.i32GeS(vm), // i32.ge
+        .i32_ge_u => try inst.i32GeU(vm), // i32.
         .i32_add => try inst.i32Add(vm), // i32.add
         .i32_sub => try inst.i32Sub(vm), // i32.sub
-        .i32_const => |value| try inst.i32Const(vm, value), // i32.const
+        .i32_and => try inst.i32And(vm), // i32.and
+        .i32_or => try inst.i32Or(vm), // i32.or
+        .i32_xor => try inst.i32Xor(vm), // i32.xor
         //else => try inst.unsupportedOpcode(vm, context),
     }
 }

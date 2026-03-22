@@ -110,6 +110,75 @@ pub inline fn i32Store(vm: *VM, mem_arg: types.MemArg) anyerror!void {
     std.mem.writeInt(i32, vm.memories[0].data[addr..][0..4], value, .little);
 }
 
+pub inline fn i32Const(vm: *VM, value: i32) anyerror!void {
+    try vm.stack.push(.{ .i32 = value });
+}
+
+pub inline fn i32Eqz(vm: *VM) anyerror!void {
+    const value = try vm.popI32();
+    try vm.stack.push(.{ .i32 = if (value == 0) 1 else 0 });
+}
+
+pub inline fn i32Eq(vm: *VM) anyerror!void {
+    const b = try vm.popI32();
+    const a = try vm.popI32();
+    try vm.stack.push(.{ .i32 = if (a == b) 1 else 0 });
+}
+
+pub inline fn i32Ne(vm: *VM) anyerror!void {
+    const b = try vm.popI32();
+    const a = try vm.popI32();
+    try vm.stack.push(.{ .i32 = if (a != b) 1 else 0 });
+}
+
+pub inline fn i32LtS(vm: *VM) anyerror!void {
+    const b = try vm.popI32();
+    const a = try vm.popI32();
+    try vm.stack.push(.{ .i32 = if (a < b) 1 else 0 });
+}
+
+pub inline fn i32LtU(vm: *VM) anyerror!void {
+    const b: u32 = @intCast(try vm.popI32());
+    const a: u32 = @intCast(try vm.popI32());
+    try vm.stack.push(.{ .i32 = if (a < b) 1 else 0 });
+}
+
+pub inline fn i32GtS(vm: *VM) anyerror!void {
+    const b = try vm.popI32();
+    const a = try vm.popI32();
+    try vm.stack.push(.{ .i32 = if (a > b) 1 else 0 });
+}
+
+pub inline fn i32GtU(vm: *VM) anyerror!void {
+    const b: u32 = @intCast(try vm.popI32());
+    const a: u32 = @intCast(try vm.popI32());
+    try vm.stack.push(.{ .i32 = if (a > b) 1 else 0 });
+}
+
+pub inline fn i32LeS(vm: *VM) anyerror!void {
+    const b = try vm.popI32();
+    const a = try vm.popI32();
+    try vm.stack.push(.{ .i32 = if (a <= b) 1 else 0 });
+}
+
+pub inline fn i32LeU(vm: *VM) anyerror!void {
+    const b: u32 = @intCast(try vm.popI32());
+    const a: u32 = @intCast(try vm.popI32());
+    try vm.stack.push(.{ .i32 = if (a <= b) 1 else 0 });
+}
+
+pub inline fn i32GeS(vm: *VM) anyerror!void {
+    const b = try vm.popI32();
+    const a = try vm.popI32();
+    try vm.stack.push(.{ .i32 = if (a >= b) 1 else 0 });
+}
+
+pub inline fn i32GeU(vm: *VM) anyerror!void {
+    const b: u32 = @intCast(try vm.popI32());
+    const a: u32 = @intCast(try vm.popI32());
+    try vm.stack.push(.{ .i32 = if (a >= b) 1 else 0 });
+}
+
 pub inline fn i32Add(vm: *VM) anyerror!void {
     const b = try vm.popI32();
     const a = try vm.popI32();
@@ -122,8 +191,22 @@ pub inline fn i32Sub(vm: *VM) anyerror!void {
     try vm.stack.push(.{ .i32 = @intCast(a - b) });
 }
 
-pub inline fn i32Const(vm: *VM, value: i32) anyerror!void {
-    try vm.stack.push(.{ .i32 = value });
+pub inline fn i32And(vm: *VM) anyerror!void {
+    const b = try vm.popI32();
+    const a = try vm.popI32();
+    try vm.stack.push(.{ .i32 = a & b });
+}
+
+pub inline fn i32Or(vm: *VM) anyerror!void {
+    const b = try vm.popI32();
+    const a = try vm.popI32();
+    try vm.stack.push(.{ .i32 = a | b });
+}
+
+pub inline fn i32Xor(vm: *VM) anyerror!void {
+    const b = try vm.popI32();
+    const a = try vm.popI32();
+    try vm.stack.push(.{ .i32 = a ^ b });
 }
 
 pub inline fn unsupportedOpcode(_: *VM, _: *const Context) anyerror!void {

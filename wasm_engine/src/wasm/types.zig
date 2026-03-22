@@ -101,6 +101,9 @@ pub const OpcodeTag = enum(u8) {
     i32_ge_u = 0x4F,
     i32_add = 0x6A,
     i32_sub = 0x6B,
+    i32_and = 0x71,
+    i32_or = 0x72,
+    i32_xor = 0x73,
 };
 
 pub const MemArg = struct {
@@ -114,11 +117,14 @@ pub const BlockType = union(enum) {
     multi: *const context.FuncType,
 
     pub fn fromRaw(stream: *utils.byteStream, ctx: *const Context) !BlockType {
+        std.debug.print("stream head: {x}\n", .{stream.data[0]});
         const data = try stream.readSLEB128();
+        std.debug.print("BlockType raw data: {d}\n", .{data});
         var block_type: BlockType = undefined;
         if (data < 0) {
             const u_data: u64 = @bitCast(data);
             const byte: u8 = @intCast(u_data & 0x7F);
+            std.debug.print("BlockType byte: {x}\n", .{u_data});
             switch (byte) {
                 0x40 => block_type = BlockType{ .empty = {} },
                 0x7F, 0x7E, 0x7D, 0x7C, 0x7B, 0x70, 0x6F => block_type = BlockType{ .single = @enumFromInt(byte) },
@@ -184,6 +190,9 @@ pub const Opcode = union(OpcodeTag) {
     i32_ge_u,
     i32_add,
     i32_sub,
+    i32_and,
+    i32_or,
+    i32_xor,
 };
 
 pub const BlockTag = enum(u8) {

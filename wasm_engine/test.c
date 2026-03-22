@@ -7,9 +7,9 @@ int entry() {
         a = add(a, 1);
     }
     if (a == 10) {
-        return 0;
+        return 10;
     } else {
-        return 1;
+        return 3;
     }
 }
 

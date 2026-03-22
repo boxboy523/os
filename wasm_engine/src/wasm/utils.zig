@@ -50,14 +50,16 @@ pub fn decodeSLEB128(data: []const u8) !OffsetSResult {
         }
         const value = byte & 0x7F;
         result |= @as(i64, value) << shift;
+        if (shift < 56) {
+            shift += 7;
+        }
         if (byte & 0x80 == 0) {
             index = idx + 1; // Return the number of bytes read
-            if (shift < 63 and (byte & 0x40) != 0) {
+            if (shift < 64 and (byte & 0x40) != 0) {
                 result |= @as(i64, -1) << shift; // Sign extend if negative
             }
             break;
         }
-        shift += 7;
     }
     return OffsetSResult{
         .offset = index,
